@@ -1,0 +1,39 @@
+{
+  "name": "quiz_backend_node",
+  "version": "1.0.0",
+  "description": "Node file for quiz app (backend file)",
+  "main": "quiz.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/danielpiyo/quiz_node.git"
+  },
+  "keywords": [
+    "Node",
+    "js",
+    "Express",
+    "js",
+    "quiz_app"
+  ],
+  "author": "daniel opiyo",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/danielpiyo/quiz_node/issues"
+  },
+  "homepage": "https://github.com/danielpiyo/quiz_node#readme",
+  "dependencies": {
+    "bcrypt": "^3.0.8",
+    "body-parser": "^1.19.0",
+    "cors": "^2.8.5",
+    "express": "^4.17.1",
+    "express-rate-limit": "^5.0.0",
+    "helmet": "^3.21.2",
+    "jsonwebtoken": "^8.5.1",
+    "mysql": "^2.18.1",
+    "nodemailer": "^6.4.2",
+    "request": "^2.88.2",
+    "xss-clean": "^0.1.1"
+  }
+}
