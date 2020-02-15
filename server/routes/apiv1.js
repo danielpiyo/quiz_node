@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bodyParser = require('body-parser');
 const mysql = require('mysql');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcrypt-nodejs');
 const jwt = require('jsonwebtoken');
 const config = require(__dirname + '/config.js');
 const nodemailer = require('nodemailer');
@@ -34,7 +34,7 @@ router.post('/signin', function (req, res) {
             var status = error ? 500 : 404;
             res.status(status).send(JSON.stringify({
                 status: status,
-                message: error ? "Error getting the that email" : "Username you have entered is Incorrect. Kindly Try Again. or Contact systemadmin",
+                message: error ? "Error getting the that Username" : "Username you have entered is Incorrect. Kindly Try Again. or Contact systemadmin",
                 detailed_message: error ? error.message : ""
             }));
             console.log('========= You have Got an error ================ for this User: ' + user1.username);
@@ -43,7 +43,7 @@ router.post('/signin', function (req, res) {
             user = result[0];
 
 
-            bcrypt.compare(req.body.password, user.password, function (error, pwMatch) {
+            bcrypt.compare(req.body.password, user.user_password, function (error, pwMatch) {
                 var payload;
                 if (error) {
                     return (error);
@@ -102,9 +102,7 @@ router.post('/register', function post(req, res, next) { //
             // console.log(hash);
             user.hashedPassword = hash;
 
-            connAttrs.query(
-
-                'SELECT * FROM users where email=?', user.email, function (error, result) {
+            connAttrs.query("SELECT * FROM users where email=?", user.email, function (error, result) {
                     if (error || result.length > 0) {
                         res.set('Content-Type', 'application/json');
                         var status = error ? 500 : 404;
@@ -116,6 +114,7 @@ router.post('/register', function post(req, res, next) { //
                         console.log("error occored");
                         return (error);
                     }
+                    console.log('Got It now');
                     connAttrs.query("INSERT INTO users SET ? ", {
                         email: user.email,
                         username: user.username,
@@ -126,6 +125,7 @@ router.post('/register', function post(req, res, next) { //
                         user_status: 'Pending',
                         user_details: user.user_details
                     }, function (error, results) {
+                        console.log('Its Here');
                         if (error) {
                             res.set('Content-Type', 'application/json');
                             res.status(500).send(JSON.stringify({
@@ -137,10 +137,10 @@ router.post('/register', function post(req, res, next) { //
                             console.log(`Account for ${user.username}, succesfully created on ${new Date()}`);
                             return res.contentType('application/json').status(201).send(JSON.stringify(results));
                         }
-                    })
-                })
-        })
-    })
+                    });
+                });
+        });
+    });
 
 });
 
@@ -365,6 +365,396 @@ router.post('/newGroup', function (req, res) {
     });
 });
 
+/*****
+ * pulling list of usersTypes available
+ */
+router.post('/userType', function (req, res) {
+
+    var token = req.body.token;
+    if (!token) return res.status(401).send({
+        auth: false,
+        message: 'No token provided.'
+    });
+
+    jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
+        if (err) {
+            return res.status(500).send({
+                auth: false,
+                message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
+            });
+        }
+        var sql = "SELECT * FROM user_types";
+        connAttrs.query(sql, function (error, results) {
+            if (error || results.length < 1) {
+                res.set('Content-Type', 'application/json');
+                var status = error ? 500 : 404;
+                res.status(status).send(JSON.stringify({
+                    status: status,
+                    message: error ? "Error getting the server" : "No UserTypes found",
+                    detailed_message: error ? error.message : "Sorry there are no usertypes set. Please consider setting"
+                }));
+                return (error);
+            }
+
+            res.contentType('application/json').status(200).send(JSON.stringify(results));
+            console.log(`All Usertype selection Released succesfullly by ${decoded.username} on ${new Date()}`);
+        });
+    });
+});
+
+
+/********
+ * pulling list of all users available
+ */
+router.post('/allUser', function (req, res) {
+
+    var token = req.body.token;
+    if (!token) return res.status(401).send({
+        auth: false,
+        message: 'No token provided.'
+    });
+
+    jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
+        if (err) {
+            return res.status(500).send({
+                auth: false,
+                message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
+            });
+        }
+        var sql = "SELECT * FROM users";
+        connAttrs.query(sql, function (error, results) {
+            if (error || results.length < 1) {
+                res.set('Content-Type', 'application/json');
+                var status = error ? 500 : 404;
+                res.status(status).send(JSON.stringify({
+                    status: status,
+                    message: error ? "Error getting the server" : "No Users found",
+                    detailed_message: error ? error.message : "Sorry there are no Users set. Please consider adding Users"
+                }));
+                return (error);
+            }
+
+            res.contentType('application/json').status(200).send(JSON.stringify(results));
+            console.log(`All Users selection Released succesfullly by ${decoded.username} on ${new Date()}`);
+        });
+    });
+});
+
+
+/*************
+ * pulling particular users of particular  Status
+ */
+router.post('/userStatus', function (req, res) {
+    var userStatus = req.body.status;
+
+    var token = req.body.token;
+    if (!token) return res.status(401).send({
+        auth: false,
+        message: 'No token provided.'
+    });
+
+    jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
+        if (err) {
+            return res.status(500).send({
+                auth: false,
+                message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
+            });
+        }
+        var sql = "SELECT * FROM users where status=?";
+        connAttrs.query(sql, userStatus, function (error, results) {
+            if (error || results.length < 1) {
+                res.set('Content-Type', 'application/json');
+                var status = error ? 500 : 404;
+                res.status(status).send(JSON.stringify({
+                    status: status,
+                    message: error ? "Error getting the server" : "No Users found",
+                    detailed_message: error ? error.message : `Sorry there are no users found with status ${userStatus}.`
+                }));
+                return (error);
+            }
+
+            res.contentType('application/json').status(200).send(JSON.stringify(results));
+            console.log(`All User with Status ${userStatus} selection Released succesfullly by ${decoded.username} on ${new Date()}`);
+        });
+    });
+});
+
+
+
+/*************
+ * pulling particular users of particular  userType
+ */
+router.post('/users', function (req, res) {
+    var userTypeId = req.body.user_type_id;
+
+    var token = req.body.token;
+    if (!token) return res.status(401).send({
+        auth: false,
+        message: 'No token provided.'
+    });
+
+    jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
+        if (err) {
+            return res.status(500).send({
+                auth: false,
+                message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
+            });
+        }
+        var sql = "SELECT * FROM users where user_type_id=?";
+        connAttrs.query(sql, userTypeId, function (error, results) {
+            if (error || results.length < 1) {
+                res.set('Content-Type', 'application/json');
+                var status = error ? 500 : 404;
+                res.status(status).send(JSON.stringify({
+                    status: status,
+                    message: error ? "Error getting the server" : "No Users found",
+                    detailed_message: error ? error.message : `Sorry there are no users found. Please consider Adding`
+                }));
+                return (error);
+            }
+
+            res.contentType('application/json').status(200).send(JSON.stringify(results));
+            console.log(`Users with type ${userTypeId} selection Released succesfullly by ${decoded.username} on ${new Date()}`);
+        });
+    });
+});
+
+/***********
+ * pulling list of available groups
+ */
+
+router.post('/groups', function (req, res) {
+
+    var token = req.body.token;
+    if (!token) return res.status(401).send({
+        auth: false,
+        message: 'No token provided.'
+    });
+
+    jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
+        if (err) {
+            return res.status(500).send({
+                auth: false,
+                message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
+            });
+        }
+        var sql = "SELECT * FROM pupil_group";
+        connAttrs.query(sql, function (error, results) {
+            if (error || results.length < 1) {
+                res.set('Content-Type', 'application/json');
+                var status = error ? 500 : 404;
+                res.status(status).send(JSON.stringify({
+                    status: status,
+                    message: error ? "Error getting the server" : "No Pupil Groups found",
+                    detailed_message: error ? error.message : `Sorry there are no groups found. Please consider Adding One`
+                }));
+                return (error);
+            }
+
+            res.contentType('application/json').status(200).send(JSON.stringify(results));
+            console.log('POST /groups released');
+        });
+    });
+});
+
+
+
+
+/******
+  * pulling list of available quizes
+  */
+
+router.post('/allQuizes', function (req, res) {
+
+    var token = req.body.token;
+    if (!token) return res.status(401).send({
+        auth: false,
+        message: 'No token provided.'
+    });
+
+    jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
+        if (err) {
+            return res.status(500).send({
+                auth: false,
+                message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
+            });
+        }
+        var sql = "SELECT * FROM quizes";
+        connAttrs.query(sql, function (error, results) {
+            if (error || results.length < 1) {
+                res.set('Content-Type', 'application/json');
+                var status = error ? 500 : 404;
+                res.status(status).send(JSON.stringify({
+                    status: status,
+                    message: error ? "Error getting the server" : "No Quiz found",
+                    detailed_message: error ? error.message : `Sorry there are no Quiz found. Please consider setting`
+                }));
+                return (error);
+            }
+
+            res.contentType('application/json').status(200).send(JSON.stringify(results));
+            console.log(`All Quizes selection Released succesfullly by ${decoded.username} on ${new Date()}`);
+        });
+    });
+});
+
+
+/*******
+ * pulling list of quizes with diffrent status 
+ */
+router.post('/quizeStatus', function (req, res) {
+    var quizStatus = req.body.quiz_status;
+
+    var token = req.body.token;
+    if (!token) return res.status(401).send({
+        auth: false,
+        message: 'No token provided.'
+    });
+
+    jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
+        if (err) {
+            return res.status(500).send({
+                auth: false,
+                message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
+            });
+        }
+        var sql = "SELECT * FROM quizes where quiz_status";
+        connAttrs.query(sql, quizStatus, function (error, results) {
+            if (error || results.length < 1) {
+                res.set('Content-Type', 'application/json');
+                var status = error ? 500 : 404;
+                res.status(status).send(JSON.stringify({
+                    status: status,
+                    message: error ? "Error getting the server" : "No Quiz found",
+                    detailed_message: error ? error.message : `Sorry there are no Quiz found. Please consider setting`
+                }));
+                return (error);
+            }
+
+            res.contentType('application/json').status(200).send(JSON.stringify(results));
+            console.log(`All Quizes with status ${quizStatus} selection Released succesfullly by ${decoded.username} on ${new Date()}`);
+        });
+    });
+});
+
+/*******
+ * pulling Questions for particular quiz
+ */
+
+router.post('/questionsiquiz', function (req, res) {
+    "use strict";
+
+    var token = req.body.token;
+    if (!token) return res.status(401).send({
+        auth: false,
+        message: 'No token provided.'
+    });
+
+    jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
+        if (err) {
+            return res.status(500).send({
+                auth: false,
+                message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
+            });
+        }
+        var sql = "SELECT quiz_id, quiz_name, quiz_subject, quiz_pass_score, quiz_reward, quiz_duration FROM quizes where quiz_id=?";
+        connAttrs.query(sql, req.body.quiz_id, function (error, results) {
+            var sqheaders = {};
+            if (error || results.length < 1) {
+                res.set('Content-Type', 'application/json');
+                var status = error ? 500 : 404;
+                res.status(status).send(JSON.stringify({
+                    status: status,
+                    message: error ? "Error getting the server" : "No Quiz found",
+                    detailed_message: error ? error.message : `Sorry there are no Quiz found. Please consider setting`
+                }));
+                return (error);
+            }
+            console.log('Quizresults', results);
+            sqheaders.quizId = results.rows[0][0];
+            sqheaders.quizName = results.rows[0][1];
+            sqheaders.quizSubject = results.rows[0][2];
+            sqheaders.quizPassScore = results.rows[0][3];
+            sqheaders.quizReward = results.rows[0][4];
+            sqheaders.quizDuration = results.rows[0][5];
+            res.set('Content-Type', 'application/json');
+            listquestions(sqheaders, connAttrs, res);
+            //getquestiondetails (sqheaders, connection,res);
+            
+        });
+    });
+});           
+
+
+function listquestions(sqheaders, connection, res) {
+
+    var sql = "SELECT question_id, question_number, question_passage, question_narration, question_points, requires_actual_answer_yn, requires_passage_answer_yn, question_multiiple_answe_yn, question_details FROM questions where quiz_id=?";
+    connAttrs.query(sql, sqheaders.quizId, function (error, results) {        
+        if (error || results.length < 1) {
+            res.set('Content-Type', 'application/json');
+            var status = error ? 500 : 404;
+            res.status(status).send(JSON.stringify({
+                status: status,
+                message: error ? "Error getting the server" : "No Questions found",
+                detailed_message: error ? error.message : `Sorry there are no Questions found.`
+            }));
+            return (error);
+        }
+            sqheaders.questions = [];
+            results.rows.forEach(function (row) {
+                var qlist = {};
+                qlist.questionId = row[0];
+                qlist.questionNumber = row[1];                
+                qlist.passage = row[2];
+                qlist.questionNarration = row[3];
+                qlist.questionPoints = row[4];
+                qlist.requireActualAnswer = row[5];
+                qlist.requirePassageAnswer = row[6];
+                qlist.requireMultipleAnswer = row[7];
+                qlist.questionDetails = row[8];
+               
+                sqheaders.questions.push(qlist);
+            });
+            async.eachSeries(
+                sqheaders.questions,
+                function (qlist, cb) {
+                    connAttrs.query("SELECT answer_id, answer_narration, answer_correct, answer_details, question_id FROM answers WHERE question_id=?", qlist.questionId,
+                        function (err, results) {
+                            if (err) {
+                                cb(err);
+                                return;
+                            }
+                            qlist.options = [];
+                            results.rows.forEach(function (row) {
+                                var qa = {};
+                                qa.answerId = row[0];
+                                qa.AnswerNarration = row[1];
+                                qa.isAnswer = row[2];
+                                qa.questionId = row[3];
+                                qlist.options.push(qa);
+                            });
+                            cb();
+                        }
+                    );
+                },
+                function (err) {
+                    if (err) throw err;
+                    //callback(null, JSON.stringify(department));
+                    res.send(JSON.stringify(sqheaders));
+                    connAttrs.end(function (err) {
+                        if (err) {
+                            console.error(err);
+                        }
+                    });
+                }
+            );
+
+            //res.send(JSON.stringify(sqheaders));
+
+        }   ///function (err,results) 
+
+    );
+}
 
 
 module.exports = router;
