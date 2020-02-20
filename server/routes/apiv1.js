@@ -6,16 +6,20 @@ const bcrypt = require('bcrypt-nodejs');
 const jwt = require('jsonwebtoken');
 const config = require(__dirname + '/config.js');
 const nodemailer = require('nodemailer');
+const async = require('async');
 
 // Use body parser to parse JSON body
 router.use(bodyParser.json());
-const connAttrs = mysql.createConnection(config.connection);
+// const connAttrs = mysql.createConnection(config.connection);
+const connAttrs = config.connection;
 
 router.get('/', function (req, res) {
     res.sendfile('/')
 });
 
-// login
+/*********
+ * login
+ * confirmed working */ 
 router.post('/signin', function (req, res) {
 
     let user1 = {
@@ -28,7 +32,9 @@ router.post('/signin', function (req, res) {
             message: 'Please provide login details'
         });
     }
-    connAttrs.query("SELECT * FROM users where username=? ", user1.username, function (error, result) {
+    connection = mysql.createConnection(connAttrs);        
+
+        connection.query("SELECT * FROM users where username=? ", user1.username, function (error, result) {
         if (error || result < 1) {
             res.set('Content-Type', 'application/json');
             var status = error ? 500 : 404;
@@ -72,14 +78,20 @@ router.post('/signin', function (req, res) {
         }
 
     });
-
+    connection.end(function (err) {
+        if (err) {
+            console.error(err);
+        }
+    });
 });
 
 
 /*******
- * onboarding a user
+ * onboarding a user --- confirmed working
  */
 router.post('/register', function post(req, res, next) { //   
+
+    connection = mysql.createConnection(connAttrs);
 
     var user = {
         username: req.body.username,
@@ -102,7 +114,7 @@ router.post('/register', function post(req, res, next) { //
             // console.log(hash);
             user.hashedPassword = hash;
 
-            connAttrs.query("SELECT * FROM users where email=?", user.email, function (error, result) {
+            connection.query("SELECT * FROM users where email=?", user.email, function (error, result) {
                     if (error || result.length > 0) {
                         res.set('Content-Type', 'application/json');
                         var status = error ? 500 : 404;
@@ -115,7 +127,7 @@ router.post('/register', function post(req, res, next) { //
                         return (error);
                     }
                     console.log('Got It now');
-                    connAttrs.query("INSERT INTO users SET ? ", {
+                    connection.query("INSERT INTO users SET ? ", {
                         email: user.email,
                         username: user.username,
                         user_password: user.hashedPassword,
@@ -144,11 +156,15 @@ router.post('/register', function post(req, res, next) { //
 
 });
 
+
 /***
- * Add quiz to the system 
+ * Add quiz to the system -- confirmed working
  */
 
 router.post('/newQuiz', function (req, res) {
+   
+
+
     var newQuiz = {
         quiz_name: req.body.quiz_name,
         quiz_subject: req.body.quiz_subject,
@@ -175,7 +191,9 @@ router.post('/newQuiz', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
-        connAttrs.query(
+
+        connection = mysql.createConnection(connAttrs);
+        connection.query(
 
             "SELECT * FROM quizes where quiz_name=? ", newQuiz.quiz_name, function (error, result) {
                 if (error || result.length > 0) {
@@ -189,7 +207,7 @@ router.post('/newQuiz', function (req, res) {
                     console.log("error occured");
                     return (error);
                 }
-                connAttrs.query("INSERT INTO quiz_name SET ? ", {
+                connection.query("INSERT INTO quizes SET ? ", {
                     quiz_name: newQuiz.quiz_name,
                     quiz_subject: newQuiz.quiz_subject,
                     quiz_class: newQuiz.quiz_class,
@@ -209,27 +227,34 @@ router.post('/newQuiz', function (req, res) {
                             detailed_message: error.message
                         }));
                     } else {
-                        console.log(`${decoded.username}, succesfully added Mail Group: ${mailGroup.group_name} on ${new Date()}`);
+                        console.log(`${decoded.username}, succesfully added New Quiz: ${newQuiz.quiz_name} on ${new Date()}`);
                         return res.contentType('application/json').status(201).send(JSON.stringify(results));
                     }
                 })
             })
 
     });
-});
+})
+
 
 
 /***
- * creating Questions by teacher
+ * creating Questions by teacher -- confirmed workinh
  */
 
 router.post('/newQuestion', function (req, res) {
+
+
     var newQuestion = {
         quiz_id: req.body.quiz_id,
         question_narration: req.body.question_narration,
         question_points: req.body.question_points,
         question_multiiple_answe_yn: req.body.question_multiiple_answe_yn,
-        question_details: req.body.question_details
+        question_details: req.body.question_details,
+        question_number: req.body.question_number,
+        question_passage: req.body.question_passage,
+        requires_actual_answer_yn: req.body.requires_actual_answer_yn,
+        requires_passage_answer_yn: req.body.requires_passage_answer_yn
     }
 
     // token
@@ -246,12 +271,18 @@ router.post('/newQuestion', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
-        connAttrs.query("INSERT INTO questions SET ? ", {
+
+        connection = mysql.createConnection(connAttrs);
+        connection.query("INSERT INTO questions SET ? ", {
             quiz_id: newQuestion.quiz_id,
             question_narration: newQuestion.question_narration,
             question_points: newQuestion.question_points,
             question_multiiple_answe_yn: newQuestion.question_multiiple_answe_yn,
-            question_details: newQuestion.question_details
+            question_details: newQuestion.question_details,
+            question_number: newQuestion.question_number,
+            question_passage: newQuestion.question_passage,
+            requires_actual_answer_yn: newQuestion.requires_actual_answer_yn,
+            requires_passage_answer_yn: newQuestion.requires_passage_answer_yn
         }, function (error, results) {
             if (error) {
                 res.set('Content-Type', 'application/json');
@@ -268,15 +299,17 @@ router.post('/newQuestion', function (req, res) {
 
 
     });
-});
+})
+
 
 /***
- * creating new answeres for questions
+ * creating new answeres for questions --confirmed working
  */
 
 router.post('/newAnswers', function (req, res) {
-    var newAnswers = {
 
+     var newAnswers = {
+        answer_id: req.body.answer_id,
         question_id: req.body.question_id,
         answer_narration: req.body.answer_narration,
         answer_correct: req.body.answer_correct,
@@ -296,11 +329,14 @@ router.post('/newAnswers', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
-        connAttrs.query("INSERT INTO answers SET ? ", {
+
+        connection = mysql.createConnection(connAttrs);
+        connection.query("INSERT INTO answers SET ? ", {
+            answer_id: newAnswers.answer_id,
             question_id: newAnswers.question_id,
             answer_narration: newAnswers.answer_narration,
             answer_correct: newAnswers.answer_correct,
-            answer_details: newAnswers.answer_details
+            answer_details: newAnswers.answer_details           
         }, function (error, results) {
             if (error) {
                 res.set('Content-Type', 'application/json');
@@ -317,15 +353,17 @@ router.post('/newAnswers', function (req, res) {
 
 
     });
-});
+})
+
 
 /***
- * creating new pupil Group
+ * creating new pupil Group -- confirmed working
  */
 
 router.post('/newGroup', function (req, res) {
-    var newGroup = {
-        user_id: req.body.user_id,
+
+
+    var newGroup = {       
         group_name: req.body.group_name,
         group_details: req.body.group_details
     }
@@ -343,8 +381,8 @@ router.post('/newGroup', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
-        connAttrs.query("INSERT INTO pupil_groups SET ? ", {
-            user_id: newGroup.user_id,
+        connection = mysql.createConnection(connAttrs);
+        connection.query("INSERT INTO groups SET ? ", {           
             group_name: newGroup.group_name,
             group_details: newGroup.group_details
         }, function (error, results) {
@@ -356,20 +394,28 @@ router.post('/newGroup', function (req, res) {
                     detailed_message: error.message
                 }));
             } else {
-                console.log(`${decoded.username}, succesfully added New Pupil Group on ${new Date()}`);
+                console.log(`${decoded.username}, succesfully added a New Pupil Group on ${new Date()}`);
                 return res.contentType('application/json').status(201).send(JSON.stringify(results));
             }
         })
 
 
     });
-});
+})
 
-/*****
- * pulling list of usersTypes available
+
+/****************
+ * adding pupil to group --confirmed working
  */
-router.post('/userType', function (req, res) {
 
+router.post('/addToGroup', function (req, res) {
+
+  
+    var newGroup = {
+        user_id: req.body.user_id,
+        group_id: req.body.group_id
+    }
+    // token
     var token = req.body.token;
     if (!token) return res.status(401).send({
         auth: false,
@@ -383,8 +429,52 @@ router.post('/userType', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
-        var sql = "SELECT * FROM user_types";
-        connAttrs.query(sql, function (error, results) {
+        connection = mysql.createConnection(connAttrs);
+        connection.query("INSERT INTO pupil_groups SET ? ", {
+            user_id: newGroup.user_id,
+            group_id: newGroup.group_id
+        }, function (error, results) {
+            if (error) {
+                res.set('Content-Type', 'application/json');
+                res.status(500).send(JSON.stringify({
+                    status: 500,
+                    message: "Error Posting new Pupil Group",
+                    detailed_message: error.message
+                }));
+            } else {
+                console.log(`${decoded.username}, succesfully added New Pupil to a Group on ${new Date()}`);
+                return res.contentType('application/json').status(201).send(JSON.stringify(results));
+            }
+        })
+
+
+    });
+})
+
+
+/*****
+ * pulling list of usersTypes available --confirmed working
+ */
+router.post('/userType', function (req, res) {
+
+   
+    var token = req.body.token;
+    if (!token) return res.status(401).send({
+        auth: false,
+        message: 'No token provided.'
+    });
+
+    jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
+        if (err) {
+            return res.status(500).send({
+                auth: false,
+                message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
+            });
+        }
+
+        connection = mysql.createConnection(connAttrs);
+        var sql = "SELECT * FROM user_type";
+        connection.query(sql, function (error, results) {
             if (error || results.length < 1) {
                 res.set('Content-Type', 'application/json');
                 var status = error ? 500 : 404;
@@ -400,11 +490,12 @@ router.post('/userType', function (req, res) {
             console.log(`All Usertype selection Released succesfullly by ${decoded.username} on ${new Date()}`);
         });
     });
-});
+})
+
 
 
 /********
- * pulling list of all users available
+ * pulling list of all users available -- confirmed working
  */
 router.post('/allUser', function (req, res) {
 
@@ -421,8 +512,10 @@ router.post('/allUser', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
+
+        connection = mysql.createConnection(connAttrs);
         var sql = "SELECT * FROM users";
-        connAttrs.query(sql, function (error, results) {
+        connection.query(sql, function (error, results) {
             if (error || results.length < 1) {
                 res.set('Content-Type', 'application/json');
                 var status = error ? 500 : 404;
@@ -437,12 +530,13 @@ router.post('/allUser', function (req, res) {
             res.contentType('application/json').status(200).send(JSON.stringify(results));
             console.log(`All Users selection Released succesfullly by ${decoded.username} on ${new Date()}`);
         });
-    });
+    })
 });
 
 
+
 /*************
- * pulling particular users of particular  Status
+ * pulling particular users of particular  Status -- confirmed working
  */
 router.post('/userStatus', function (req, res) {
     var userStatus = req.body.status;
@@ -460,8 +554,10 @@ router.post('/userStatus', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
-        var sql = "SELECT * FROM users where status=?";
-        connAttrs.query(sql, userStatus, function (error, results) {
+
+        connection = mysql.createConnection(connAttrs);
+        var sql = "SELECT * FROM users where user_status=?";
+        connection.query(sql, userStatus, function (error, results) {
             if (error || results.length < 1) {
                 res.set('Content-Type', 'application/json');
                 var status = error ? 500 : 404;
@@ -476,13 +572,14 @@ router.post('/userStatus', function (req, res) {
             res.contentType('application/json').status(200).send(JSON.stringify(results));
             console.log(`All User with Status ${userStatus} selection Released succesfullly by ${decoded.username} on ${new Date()}`);
         });
-    });
+    })
 });
 
 
 
+
 /*************
- * pulling particular users of particular  userType
+ * pulling particular users of particular  userType -- confirmed working
  */
 router.post('/users', function (req, res) {
     var userTypeId = req.body.user_type_id;
@@ -500,8 +597,10 @@ router.post('/users', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
+
+        connection = mysql.createConnection(connAttrs);
         var sql = "SELECT * FROM users where user_type_id=?";
-        connAttrs.query(sql, userTypeId, function (error, results) {
+        connection.query(sql, userTypeId, function (error, results) {
             if (error || results.length < 1) {
                 res.set('Content-Type', 'application/json');
                 var status = error ? 500 : 404;
@@ -516,11 +615,12 @@ router.post('/users', function (req, res) {
             res.contentType('application/json').status(200).send(JSON.stringify(results));
             console.log(`Users with type ${userTypeId} selection Released succesfullly by ${decoded.username} on ${new Date()}`);
         });
-    });
+    })
 });
 
+
 /***********
- * pulling list of available groups
+ * pulling list  groups -- confirmed working
  */
 
 router.post('/groups', function (req, res) {
@@ -538,8 +638,10 @@ router.post('/groups', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
-        var sql = "SELECT * FROM pupil_group";
-        connAttrs.query(sql, function (error, results) {
+
+        connection = mysql.createConnection(connAttrs);
+        var sql = "SELECT * FROM groups";
+        connection.query(sql, function (error, results) {
             if (error || results.length < 1) {
                 res.set('Content-Type', 'application/json');
                 var status = error ? 500 : 404;
@@ -554,14 +656,57 @@ router.post('/groups', function (req, res) {
             res.contentType('application/json').status(200).send(JSON.stringify(results));
             console.log('POST /groups released');
         });
+    })
+});
+
+
+
+/***********
+ * pulling list of pupils added to  groups --- confirmed working
+ */
+
+router.post('/groupsPupils', function (req, res) {
+
+    var token = req.body.token;
+    if (!token) return res.status(401).send({
+        auth: false,
+        message: 'No token provided.'
     });
+
+    jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
+        if (err) {
+            return res.status(500).send({
+                auth: false,
+                message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
+            });
+        }
+
+        connection = mysql.createConnection(connAttrs);
+        var sql = "SELECT * FROM pupil_groups";
+        connection.query(sql, function (error, results) {
+            if (error || results.length < 1) {
+                res.set('Content-Type', 'application/json');
+                var status = error ? 500 : 404;
+                res.status(status).send(JSON.stringify({
+                    status: status,
+                    message: error ? "Error getting the server" : "No Pupil found",
+                    detailed_message: error ? error.message : `Sorry there are no pupils found in any of the groups. Please consider Adding One`
+                }));
+                return (error);
+            }
+
+            res.contentType('application/json').status(200).send(JSON.stringify(results));
+            console.log('POST /groups released');
+        });
+    })
 });
 
 
 
 
+
 /******
-  * pulling list of available quizes
+  * pulling list of available quizes -- confirmed working
   */
 
 router.post('/allQuizes', function (req, res) {
@@ -579,8 +724,10 @@ router.post('/allQuizes', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
+
+        connection = mysql.createConnection(connAttrs);
         var sql = "SELECT * FROM quizes";
-        connAttrs.query(sql, function (error, results) {
+        connection.query(sql, function (error, results) {
             if (error || results.length < 1) {
                 res.set('Content-Type', 'application/json');
                 var status = error ? 500 : 404;
@@ -595,14 +742,17 @@ router.post('/allQuizes', function (req, res) {
             res.contentType('application/json').status(200).send(JSON.stringify(results));
             console.log(`All Quizes selection Released succesfullly by ${decoded.username} on ${new Date()}`);
         });
-    });
+    })
 });
 
 
 /*******
- * pulling list of quizes with diffrent status 
+ * pulling list of quizes with diffrent status --- confirmed working
  */
 router.post('/quizeStatus', function (req, res) {
+  
+    connection = mysql.createConnection(connAttrs);    
+
     var quizStatus = req.body.quiz_status;
 
     var token = req.body.token;
@@ -618,8 +768,9 @@ router.post('/quizeStatus', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
-        var sql = "SELECT * FROM quizes where quiz_status";
-        connAttrs.query(sql, quizStatus, function (error, results) {
+       
+        var sql = "SELECT * FROM quizes where quiz_status=?";
+        connection.query(sql, quizStatus, function (error, results) {
             if (error || results.length < 1) {
                 res.set('Content-Type', 'application/json');
                 var status = error ? 500 : 404;
@@ -634,8 +785,14 @@ router.post('/quizeStatus', function (req, res) {
             res.contentType('application/json').status(200).send(JSON.stringify(results));
             console.log(`All Quizes with status ${quizStatus} selection Released succesfullly by ${decoded.username} on ${new Date()}`);
         });
+    })
+    connection.end(function (err) {
+        if (err) {
+            console.error(err);
+        }
     });
 });
+
 
 /*******
  * pulling Questions for particular quiz
@@ -657,8 +814,9 @@ router.post('/questionsiquiz', function (req, res) {
                 message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
             });
         }
+        connection = mysql.createConnection(connAttrs);
         var sql = "SELECT quiz_id, quiz_name, quiz_subject, quiz_pass_score, quiz_reward, quiz_duration FROM quizes where quiz_id=?";
-        connAttrs.query(sql, req.body.quiz_id, function (error, results) {
+        connection.query(sql, req.body.quiz_id, function (error, results) {
             var sqheaders = {};
             if (error || results.length < 1) {
                 res.set('Content-Type', 'application/json');
@@ -671,25 +829,27 @@ router.post('/questionsiquiz', function (req, res) {
                 return (error);
             }
             console.log('Quizresults', results);
-            sqheaders.quizId = results.rows[0][0];
-            sqheaders.quizName = results.rows[0][1];
-            sqheaders.quizSubject = results.rows[0][2];
-            sqheaders.quizPassScore = results.rows[0][3];
-            sqheaders.quizReward = results.rows[0][4];
-            sqheaders.quizDuration = results.rows[0][5];
+            sqheaders.quizId = results[0].quiz_id;
+            sqheaders.quizName = results[0].quiz_name;
+            sqheaders.quizSubject = results[0].quiz_subject;
+            sqheaders.quizPassScore = results[0].quiz_pass_score;
+            sqheaders.quizReward = results[0].quiz_reward;
+            sqheaders.quizDuration = results[0].quiz_duration;
+            console.log('Quizresults', sqheaders);
             res.set('Content-Type', 'application/json');
-            listquestions(sqheaders, connAttrs, res);
+            listquestions(sqheaders, connection, res);
             //getquestiondetails (sqheaders, connection,res);
             
         });
-    });
-});           
-
+    })
+});
+   
 
 function listquestions(sqheaders, connection, res) {
-
+        console.log('Here');
     var sql = "SELECT question_id, question_number, question_passage, question_narration, question_points, requires_actual_answer_yn, requires_passage_answer_yn, question_multiiple_answe_yn, question_details FROM questions where quiz_id=?";
-    connAttrs.query(sql, sqheaders.quizId, function (error, results) {        
+    connection.query(sql, sqheaders.quizId, function (error, results) {   
+        console.log('Here again', sqheaders.quizId);     
         if (error || results.length < 1) {
             res.set('Content-Type', 'application/json');
             var status = error ? 500 : 404;
@@ -701,36 +861,39 @@ function listquestions(sqheaders, connection, res) {
             return (error);
         }
             sqheaders.questions = [];
-            results.rows.forEach(function (row) {
+            console.log('Here Questions', results); 
+            results.forEach(function (row) {
+                console.log('row', row);
                 var qlist = {};
-                qlist.questionId = row[0];
-                qlist.questionNumber = row[1];                
-                qlist.passage = row[2];
-                qlist.questionNarration = row[3];
-                qlist.questionPoints = row[4];
-                qlist.requireActualAnswer = row[5];
-                qlist.requirePassageAnswer = row[6];
-                qlist.requireMultipleAnswer = row[7];
-                qlist.questionDetails = row[8];
-               
+                qlist.questionId = row.question_id;
+                qlist.questionNumber = row.question_number;                
+                qlist.passage = row.question_passage;
+                qlist.questionNarration = row.question_narration;
+                qlist.questionPoints = row.question_points;
+                qlist.requireActualAnswer = row.requires_actual_answer_yn;
+                qlist.requirePassageAnswer = row.requires_passage_answer_yn;
+                qlist.requireMultipleAnswer = row.question_multiiple_answe_yn;
+                qlist.questionDetails = row.question_details;
+                console.log('Here Questions', qlist); 
                 sqheaders.questions.push(qlist);
             });
             async.eachSeries(
                 sqheaders.questions,
                 function (qlist, cb) {
-                    connAttrs.query("SELECT answer_id, answer_narration, answer_correct, answer_details, question_id FROM answers WHERE question_id=?", qlist.questionId,
+                    connection.query("SELECT answer_id, answer_narration, answer_correct, answer_details, question_id FROM answers WHERE question_id=?", qlist.questionId,
                         function (err, results) {
                             if (err) {
                                 cb(err);
                                 return;
                             }
                             qlist.options = [];
-                            results.rows.forEach(function (row) {
+                            results.forEach(function (row) {
                                 var qa = {};
-                                qa.answerId = row[0];
-                                qa.AnswerNarration = row[1];
-                                qa.isAnswer = row[2];
-                                qa.questionId = row[3];
+                                qa.answerId = row.answer_id;
+                                qa.AnswerNarration = row.answer_narration;
+                                qa.isAnswer = row.answer_correct;
+                                qa.answerDetails = row.answer_details;
+                                qa.questionId = row.question_id
                                 qlist.options.push(qa);
                             });
                             cb();
@@ -741,7 +904,7 @@ function listquestions(sqheaders, connection, res) {
                     if (err) throw err;
                     //callback(null, JSON.stringify(department));
                     res.send(JSON.stringify(sqheaders));
-                    connAttrs.end(function (err) {
+                    connection.end(function (err) {
                         if (err) {
                             console.error(err);
                         }
@@ -756,5 +919,63 @@ function listquestions(sqheaders, connection, res) {
     );
 }
 
+
+/**********//********
+ */ 
+/*** Assinging a quiz to pupil
+ * 
+*/
+router.post('/assignToPupil', function (req, res) {
+
+    var toAssign = {
+        quiz_id: req.body.quiz_id,
+        user_id: req.body.user_id,
+        start_date: req.body.start_date,
+        start_time: req.body.start_time,
+        end_time: req.body.end_time,
+        end_date: req.body.end_date,
+        is_group: req.body.is_group
+    }
+   // token
+   var token = req.body.token;
+   if (!token) return res.status(401).send({
+       auth: false,
+       message: 'No token provided.'
+   });
+
+   jwt.verify(token, config.jwtSecretKey, function (err, decoded) {
+       if (err) {
+           return res.status(500).send({
+               auth: false,
+               message: 'Sorry Your Token is not genuine. Failed to authenticate token.'
+           });
+       }
+
+       connection = mysql.createConnection(connAttrs);
+       connection.query("INSERT INTO quiz_assignment SET ? ", {
+           quiz_id: toAssign.quiz_id,
+           user_id: toAssign.user_id,
+           start_date: toAssign.start_date,
+           start_time: toAssign.start_time,
+           end_time: toAssign.end_time,
+           end_date: toAssign.end_date,
+           is_group: toAssign.is_group
+       }, function (error, results) {
+           if (error) {
+               res.set('Content-Type', 'application/json');
+               res.status(500).send(JSON.stringify({
+                   status: 500,
+                   message: "Error Assigning the quiz",
+                   detailed_message: error.message
+               }));
+           } else {
+               console.log(`${decoded.username}, succesfully assigned quiz at ${new Date()}`);
+               return res.contentType('application/json').status(201).send(JSON.stringify(results));
+           }
+       })
+
+
+   });
+})
 
 module.exports = router;
